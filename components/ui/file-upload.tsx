@@ -114,17 +114,17 @@ export function FileUpload({ onFileSelect, onUrlSubmit }: FileUploadProps) {
 
         <TabsContent value="upload" className="space-y-4">
           <motion.div
-            {...getRootProps()}
-            className={`
-              relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all duration-300
-              ${dragActive || isDragActive 
-                ? 'border-cyan-400 bg-cyan-500/10 shadow-lg shadow-cyan-500/25' 
-                : 'border-gray-600 hover:border-gray-500 hover:bg-gray-800/30'
-              }
-            `}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-          >
+          {...getRootProps}
+          className={`
+            relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all duration-300
+            ${isDragActive 
+              ? 'border-cyan-400 bg-cyan-400/5 scale-[1.02]' 
+              : 'border-gray-700 hover:border-gray-600 hover:bg-gray-800/50'
+            }
+          `}
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.99 }}
+        >
             <input {...getInputProps()} />
             
             <AnimatePresence mode="wait">
