@@ -1,52 +1,81 @@
 import { NextRequest, NextResponse } from 'next/server';
+import CloudConvert from 'cloudconvert';
 
-// Mockup API - simulates file conversion process
+export const dynamic = 'force-dynamic';
+
+const cloudConvert = new CloudConvert(process.env.CLOUDCONVERT_API_KEY || '', true); // true enables sandbox mode
+
 export async function POST(request: NextRequest) {
+  if (!process.env.CLOUDCONVERT_API_KEY) {
+    return NextResponse.json(
+      { success: false, error: 'Missing API key' },
+      { status: 500 }
+    );
+  }
+
   try {
     const formData = await request.formData();
-    const file = formData.get('file') as File;
     const targetFormat = formData.get('targetFormat') as string;
     const inputMethod = formData.get('inputMethod') as string;
     const sourceUrl = formData.get('sourceUrl') as string;
 
-    let filename = '';
-    let originalFormat = '';
-    let fileSize = 0;
+    let job;
 
-    if (inputMethod === 'upload' && file) {
-      filename = file.name;
-      originalFormat = filename.split('.').pop()?.toLowerCase() || '';
-      fileSize = file.size;
+    if (inputMethod === 'upload') {
+      job = await cloudConvert.jobs.create({
+        tasks: {
+          'import-file': {
+            operation: 'import/upload'
+          },
+          'convert-file': {
+            operation: 'convert',
+            input: 'import-file',
+            output_format: targetFormat
+          },
+          'export-file': {
+            operation: 'export/url',
+            input: 'convert-file'
+          }
+        }
+      });
+
+      const uploadTask = job.tasks.find(task => task.name === 'import-file');
+
+      return NextResponse.json({
+        success: true,
+        jobId: job.id,
+        uploadTask: uploadTask
+      });
+
     } else if (inputMethod === 'link' && sourceUrl) {
-      filename = sourceUrl.split('/').pop() || 'file';
-      originalFormat = filename.split('.').pop()?.toLowerCase() || '';
-      // For URL-based conversions, simulate file size
-      fileSize = Math.floor(Math.random() * 10000000) + 1000000; // 1-10MB
+      job = await cloudConvert.jobs.create({
+        tasks: {
+          'import-file': {
+            operation: 'import/url',
+            url: sourceUrl
+          },
+          'convert-file': {
+            operation: 'convert',
+            input: 'import-file',
+            output_format: targetFormat
+          },
+          'export-file': {
+            operation: 'export/url',
+            input: 'convert-file'
+          }
+        }
+      });
+
+      return NextResponse.json({
+        success: true,
+        jobId: job.id
+      });
     }
 
-    // Generate a mock conversion ID
-    const conversionId = Math.random().toString(36).substr(2, 9);
-
-    // Simulate processing delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    // Return success response with mock data
-    return NextResponse.json({ 
-      success: true, 
-      conversionId: conversionId,
-      message: 'Conversion started successfully',
-      mockData: {
-        id: conversionId,
-        original_filename: filename,
-        original_format: originalFormat,
-        target_format: targetFormat,
-        file_size: fileSize,
-        conversion_status: 'pending',
-        input_method: inputMethod,
-        source_url: inputMethod === 'link' ? sourceUrl : null,
-        created_at: new Date().toISOString()
-      }
-    });
+    return NextResponse.json(
+      { success: false, error: 'Invalid input method' },
+      { status: 400 }
+    );
 
   } catch (error) {
     console.error('Conversion error:', error);
@@ -54,5 +83,37 @@ export async function POST(request: NextRequest) {
       { success: false, error: 'Failed to start conversion' },
       { status: 500 }
     );
+  }
+}
+
+export async function GET(request: NextRequest) {
+  if (!process.env.CLOUDCONVERT_API_KEY) {
+    return NextResponse.json(
+      { success: false, error: 'Missing API key' },
+      { status: 500 }
+    );
+  }
+
+  const jobId = request.nextUrl.searchParams.get('jobId');
+
+  if (!jobId) {
+    return NextResponse.json({ success: false, error: 'Missing jobId' }, { status: 400 });
+  }
+
+  try {
+    const job = await cloudConvert.jobs.get(jobId);
+    const exportTask = job.tasks.find(task => task.name === 'export-file');
+    const importTask = job.tasks.find(task => task.name === 'import-file');
+
+    return NextResponse.json({
+      success: true,
+      status: job.status,
+      job: job,
+      exportUrl: exportTask?.result?.files?.[0]?.url,
+      originalFilename: importTask?.result?.files?.[0]?.filename
+    });
+  } catch (error) {
+    console.error('Job status error:', error);
+    return NextResponse.json({ success: false, error: 'Failed to get job status' }, { status: 500 });
   }
 }

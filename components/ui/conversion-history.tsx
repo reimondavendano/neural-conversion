@@ -2,20 +2,22 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Download, 
-  Clock, 
-  CheckCircle, 
-  XCircle, 
-  Loader2, 
-  FileText, 
-  Music, 
-  Video, 
-  Image, 
-  Archive, 
+import {
+  Download,
+  Clock,
+  CheckCircle,
+  XCircle,
+  Loader2,
+  FileText,
+  Music,
+  Video,
+  Image,
+  Archive,
   FileSpreadsheet,
   ExternalLink,
-  Upload
+  Upload,
+  Book,
+  Presentation
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -29,6 +31,8 @@ const formatIcons: Record<string, React.ComponentType<any>> = {
   image: Image,
   archive: Archive,
   spreadsheet: FileSpreadsheet,
+  ebook: Book,
+  presentation: Presentation,
 };
 
 const statusConfig = {
@@ -62,45 +66,7 @@ const statusConfig = {
   }
 };
 
-export function ConversionHistory() {
-  const [conversions, setConversions] = useState<Conversion[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    // Simulate loading delay
-    const timer = setTimeout(() => {
-      setConversions(mockConversions);
-      setLoading(false);
-    }, 1000);
-
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Simulate real-time updates for processing conversions
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setConversions(prev => prev.map(conversion => {
-        if (conversion.conversion_status === 'pending') {
-          return { ...conversion, conversion_status: 'processing' };
-        }
-        if (conversion.conversion_status === 'processing') {
-          // 70% chance to complete, 30% chance to stay processing
-          if (Math.random() > 0.3) {
-            return {
-              ...conversion,
-              conversion_status: 'completed',
-              download_url: `https://example.com/downloads/${conversion.id}.${conversion.target_format}`,
-              completed_at: new Date().toISOString()
-            };
-          }
-        }
-        return conversion;
-      }));
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, []);
-
+export function ConversionHistory({ conversions }: { conversions: Conversion[] }) {
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -130,22 +96,8 @@ export function ConversionHistory() {
   };
 
   const handleDownload = (downloadUrl: string, filename: string) => {
-    // In a real app, this would trigger the actual download
     window.open(downloadUrl, '_blank');
   };
-
-  if (loading) {
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-center py-12">
-          <div className="flex items-center gap-3 text-gray-400">
-            <Loader2 size={24} className="animate-spin text-cyan-400" />
-            <span>Loading neural processing queue...</span>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   if (conversions.length === 0) {
     return (
@@ -194,7 +146,7 @@ export function ConversionHistory() {
                     <div className="flex-shrink-0 mt-1">
                       {getFileIcon(conversion.original_format)}
                     </div>
-                    
+
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <h4 className="font-medium text-white truncate">
@@ -207,7 +159,7 @@ export function ConversionHistory() {
                           <Upload size={14} className="text-gray-400 flex-shrink-0" />
                         )}
                       </div>
-                      
+
                       <div className="flex items-center gap-2 text-sm text-gray-400 mb-2">
                         <span className="uppercase font-mono">
                           {conversion.original_format}
@@ -219,13 +171,12 @@ export function ConversionHistory() {
                         <span>•</span>
                         <span>{formatFileSize(conversion.file_size)}</span>
                       </div>
-                      
+
                       <div className="flex items-center gap-2">
-                        <StatusIcon 
-                          size={16} 
-                          className={`${status.color} ${
-                            conversion.conversion_status === 'processing' ? 'animate-spin' : ''
-                          }`} 
+                        <StatusIcon
+                          size={16}
+                          className={`${status.color} ${conversion.conversion_status === 'processing' ? 'animate-spin' : ''
+                            }`}
                         />
                         <span className={`text-sm font-medium ${status.color}`}>
                           {status.label}
@@ -248,7 +199,7 @@ export function ConversionHistory() {
                         Download
                       </Button>
                     )}
-                    
+
                     {conversion.conversion_status === 'processing' && (
                       <div className="px-3 py-1 bg-blue-500/20 border border-blue-500/30 rounded-md">
                         <div className="flex items-center gap-2">
@@ -257,7 +208,7 @@ export function ConversionHistory() {
                         </div>
                       </div>
                     )}
-                    
+
                     {conversion.conversion_status === 'failed' && (
                       <Button
                         size="sm"

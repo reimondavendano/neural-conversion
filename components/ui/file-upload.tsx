@@ -3,7 +3,7 @@
 import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, Link, Zap, FileText, Music, Video, Image, Archive, FileSpreadsheet } from 'lucide-react';
+import { Upload, Link, Zap, FileText, Music, Video, Image, Archive, FileSpreadsheet, Book, Presentation } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -22,6 +22,8 @@ const formatIcons: Record<string, React.ComponentType<any>> = {
   image: Image,
   archive: Archive,
   spreadsheet: FileSpreadsheet,
+  ebook: Book,
+  presentation: Presentation,
 };
 
 export function FileUpload({ onFileSelect, onUrlSubmit }: FileUploadProps) {
@@ -35,11 +37,11 @@ export function FileUpload({ onFileSelect, onUrlSubmit }: FileUploadProps) {
     if (acceptedFiles.length > 0) {
       const file = acceptedFiles[0];
       setSelectedFile(file);
-      
+
       // Auto-suggest target formats based on file type
       const extension = getFileExtension(file.name);
       const category = getFormatCategory(extension);
-      
+
       if (category) {
         // Suggest a different format from the same category
         const otherFormats = category.extensions.filter(ext => ext !== extension);
@@ -96,14 +98,14 @@ export function FileUpload({ onFileSelect, onUrlSubmit }: FileUploadProps) {
     <div className="space-y-6">
       <Tabs defaultValue="upload" className="w-full">
         <TabsList className="grid w-full grid-cols-2 bg-gray-800/50 border border-gray-700">
-          <TabsTrigger 
-            value="upload" 
+          <TabsTrigger
+            value="upload"
             className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400 data-[state=active]:border-cyan-500/50"
           >
             <Upload size={16} className="mr-2" />
             Upload File
           </TabsTrigger>
-          <TabsTrigger 
+          <TabsTrigger
             value="url"
             className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400 data-[state=active]:border-cyan-500/50"
           >
@@ -113,20 +115,18 @@ export function FileUpload({ onFileSelect, onUrlSubmit }: FileUploadProps) {
         </TabsList>
 
         <TabsContent value="upload" className="space-y-4">
-          <motion.div
-          {...getRootProps}
-          className={`
+          <div
+            {...getRootProps()}
+            className={`
             relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all duration-300
-            ${isDragActive 
-              ? 'border-cyan-400 bg-cyan-400/5 scale-[1.02]' 
-              : 'border-gray-700 hover:border-gray-600 hover:bg-gray-800/50'
-            }
+            ${isDragActive
+                ? 'border-cyan-400 bg-cyan-400/5 scale-[1.02]'
+                : 'border-gray-700 hover:border-gray-600 hover:bg-gray-800/50'
+              }
           `}
-          whileHover={{ scale: 1.01 }}
-          whileTap={{ scale: 0.99 }}
-        >
+          >
             <input {...getInputProps()} />
-            
+
             <AnimatePresence mode="wait">
               {selectedFile ? (
                 <motion.div
@@ -147,7 +147,7 @@ export function FileUpload({ onFileSelect, onUrlSubmit }: FileUploadProps) {
                       </p>
                     </div>
                   </div>
-                  
+
                   <div className="space-y-3">
                     <label className="block text-sm font-medium text-gray-300">
                       Convert to:
@@ -163,8 +163,8 @@ export function FileUpload({ onFileSelect, onUrlSubmit }: FileUploadProps) {
                               {category.icon} {category.category}
                             </div>
                             {category.extensions.map((ext) => (
-                              <SelectItem 
-                                key={ext} 
+                              <SelectItem
+                                key={ext}
                                 value={ext}
                                 className="text-white hover:bg-gray-700"
                               >
@@ -178,7 +178,10 @@ export function FileUpload({ onFileSelect, onUrlSubmit }: FileUploadProps) {
                   </div>
 
                   <Button
-                    onClick={handleFileConvert}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleFileConvert();
+                    }}
                     disabled={!targetFormat}
                     className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-black font-semibold"
                   >
@@ -197,7 +200,7 @@ export function FileUpload({ onFileSelect, onUrlSubmit }: FileUploadProps) {
                   <div className="mx-auto w-16 h-16 bg-gradient-to-br from-cyan-500/20 to-blue-500/20 rounded-full flex items-center justify-center border border-cyan-500/30">
                     <Upload size={32} className="text-cyan-400" />
                   </div>
-                  
+
                   <div>
                     <h3 className="text-lg font-semibold text-white mb-2">
                       Upload Your File
@@ -215,7 +218,7 @@ export function FileUpload({ onFileSelect, onUrlSubmit }: FileUploadProps) {
                 </motion.div>
               )}
             </AnimatePresence>
-          </motion.div>
+          </div>
         </TabsContent>
 
         <TabsContent value="url" className="space-y-4">
@@ -248,8 +251,8 @@ export function FileUpload({ onFileSelect, onUrlSubmit }: FileUploadProps) {
                         {category.icon} {category.category}
                       </div>
                       {category.extensions.map((ext) => (
-                        <SelectItem 
-                          key={ext} 
+                        <SelectItem
+                          key={ext}
                           value={ext}
                           className="text-white hover:bg-gray-700"
                         >

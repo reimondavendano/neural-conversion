@@ -24,6 +24,16 @@ export const FILE_FORMATS = {
     icon: '📊',
     category: 'Spreadsheet'
   },
+  presentation: {
+    extensions: ['pptx', 'ppt', 'odp'],
+    icon: '📽️',
+    category: 'Presentation'
+  },
+  ebook: {
+    extensions: ['epub', 'mobi', 'azw3', 'fb2'],
+    icon: '📚',
+    category: 'Ebook'
+  },
   archive: {
     extensions: ['zip', 'rar', '7z', 'tar', 'gz'],
     icon: '📦',

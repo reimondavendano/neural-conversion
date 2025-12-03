@@ -1,49 +1,132 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Toaster, toast } from 'react-hot-toast';
 import { Zap, Bot, Cpu, Sparkles } from 'lucide-react';
 import { FileUpload } from '@/components/ui/file-upload';
 import { ConversionHistory } from '@/components/ui/conversion-history';
 import { CircuitBackground } from '@/components/ui/circuit-background';
+import { Conversion, ConversionStatus } from '@/lib/supabase-types';
 
 export default function Home() {
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [conversions, setConversions] = useState<Conversion[]>([]);
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const activeConversions = conversions.filter(c =>
+        c.conversion_status === 'pending' || c.conversion_status === 'processing'
+      );
+
+      if (activeConversions.length === 0) return;
+
+      const updatedConversions = await Promise.all(activeConversions.map(async (c) => {
+        try {
+          const res = await fetch(`/api/convert?jobId=${c.id}`);
+          const data = await res.json();
+
+          if (data.success) {
+            let status: ConversionStatus = 'pending';
+            const cloudStatus = data.status.toLowerCase();
+
+            if (cloudStatus === 'waiting' || cloudStatus === 'queued') status = 'pending';
+            else if (cloudStatus === 'processing' || cloudStatus === 'uploading') status = 'processing';
+            else if (cloudStatus === 'finished') status = 'completed';
+            else if (cloudStatus === 'error') status = 'failed';
+
+            return {
+              ...c,
+              conversion_status: status,
+              download_url: data.exportUrl,
+              original_filename: data.originalFilename || c.original_filename
+            };
+          }
+        } catch (e) {
+          console.error(e);
+        }
+        return c;
+      }));
+
+      setConversions(prev => prev.map(c => {
+        const updated = updatedConversions.find(uc => uc.id === c.id);
+        return updated || c;
+      }));
+
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [conversions]);
 
   const handleFileConversion = async (file: File, targetFormat: string) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('targetFormat', targetFormat);
-    formData.append('inputMethod', 'upload');
+    const toastId = toast.loading('Initializing conversion...');
 
     try {
-      const response = await fetch('/api/convert', {
+      const formData = new FormData();
+      formData.append('targetFormat', targetFormat);
+      formData.append('inputMethod', 'upload');
+
+      const initResponse = await fetch('/api/convert', {
         method: 'POST',
         body: formData,
       });
 
-      const result = await response.json();
+      const initData = await initResponse.json();
 
-      if (result.success) {
-        toast.success(`🚀 Neural conversion initiated: ${file.name} → ${targetFormat.toUpperCase()}`);
-        setRefreshKey(prev => prev + 1);
-      } else {
-        toast.error('⚠️ Neural processing failed to initialize');
+      if (!initData.success) {
+        throw new Error(initData.error || 'Failed to initialize');
       }
+
+      const { jobId, uploadTask } = initData;
+
+      // Add to state immediately
+      const newConversion: Conversion = {
+        id: jobId,
+        original_filename: file.name,
+        original_format: file.name.split('.').pop()?.toLowerCase() || '',
+        target_format: targetFormat,
+        file_size: file.size,
+        conversion_status: 'pending',
+        input_method: 'upload',
+        created_at: new Date().toISOString()
+      };
+
+      setConversions(prev => [newConversion, ...prev]);
+
+      // Upload file
+      toast.loading('Uploading file...', { id: toastId });
+
+      const { url, parameters } = uploadTask.result.form;
+      const uploadFormData = new FormData();
+      Object.keys(parameters).forEach(key => uploadFormData.append(key, parameters[key]));
+      uploadFormData.append('file', file);
+
+      await fetch(url, {
+        method: 'POST',
+        body: uploadFormData,
+      });
+
+      toast.success('File uploaded. Processing started.', { id: toastId });
+
+      // Update status to processing locally (polling will correct it)
+      setConversions(prev => prev.map(c =>
+        c.id === jobId ? { ...c, conversion_status: 'processing' } : c
+      ));
+
     } catch (error) {
       console.error('Error:', error);
-      toast.error('🔥 System error: Neural network offline');
+      toast.error('Failed to start conversion', { id: toastId });
     }
   };
 
   const handleUrlConversion = async (url: string, targetFormat: string) => {
-    const formData = new FormData();
-    formData.append('sourceUrl', url);
-    formData.append('targetFormat', targetFormat);
-    formData.append('inputMethod', 'link');
+    const toastId = toast.loading('Initializing remote conversion...');
 
     try {
+      const formData = new FormData();
+      formData.append('sourceUrl', url);
+      formData.append('targetFormat', targetFormat);
+      formData.append('inputMethod', 'link');
+
       const response = await fetch('/api/convert', {
         method: 'POST',
         body: formData,
@@ -52,21 +135,33 @@ export default function Home() {
       const result = await response.json();
 
       if (result.success) {
-        toast.success(`🌐 Remote neural processing: URL → ${targetFormat.toUpperCase()}`);
-        setRefreshKey(prev => prev + 1);
+        const newConversion: Conversion = {
+          id: result.jobId,
+          original_filename: url.split('/').pop() || 'remote-file',
+          original_format: url.split('.').pop()?.toLowerCase() || '',
+          target_format: targetFormat,
+          file_size: 0, // Unknown initially
+          conversion_status: 'pending',
+          input_method: 'link',
+          source_url: url,
+          created_at: new Date().toISOString()
+        };
+
+        setConversions(prev => [newConversion, ...prev]);
+        toast.success('Remote conversion started', { id: toastId });
       } else {
-        toast.error('⚠️ Remote neural link failed');
+        throw new Error(result.error);
       }
     } catch (error) {
       console.error('Error:', error);
-      toast.error('🔥 Network error: Unable to establish neural connection');
+      toast.error('Failed to start remote conversion', { id: toastId });
     }
   };
 
   return (
     <div className="min-h-screen bg-black text-white relative overflow-hidden">
       <CircuitBackground />
-      
+
       <div className="relative z-10">
         {/* Header */}
         <motion.header
@@ -124,34 +219,19 @@ export default function Home() {
                 <Zap size={18} className="text-cyan-400" />
                 <span className="text-sm font-medium text-cyan-400">Lightning Fast • Neural Processing</span>
               </div>
-              
+
               <h2 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-white via-cyan-200 to-blue-400 bg-clip-text text-transparent leading-tight">
                 Convert Files with
                 <br />
                 <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
-                   Precision
+                  Precision
                 </span>
               </h2>
-              
+
               <p className="text-xl text-gray-300 mb-4 max-w-2xl mx-auto leading-relaxed">
                 Experience next-generation file conversion powered by advanced neural networks.
-                Transform any file format with quantum-speed processing. <strong>This is a mockup demonstration.</strong>
+                Transform any file format with quantum-speed processing.
               </p>
-              
-              <div className="flex flex-wrap justify-center gap-4 text-sm text-gray-400">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                  <span>Demo Mode Active</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></div>
-                  <span>Simulated Processing</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
-                  <span>Mockup Interface</span>
-                </div>
-              </div>
             </motion.div>
           </div>
         </motion.section>
@@ -167,12 +247,12 @@ export default function Home() {
               className="space-y-6"
             >
               <div className="text-center lg:text-left">
-                <h3 className="text-2xl font-bold text-white mb-2">Convert Your Files (Demo)</h3>
+                <h3 className="text-2xl font-bold text-white mb-2">Convert Your Files</h3>
                 <p className="text-gray-400">
-                  Upload files or provide URLs for simulated conversion
+                  Upload files or provide URLs for conversion
                 </p>
               </div>
-              
+
               <div className="bg-gray-900/50 backdrop-blur-sm border border-gray-800 rounded-2xl p-8 shadow-2xl">
                 <FileUpload
                   onFileSelect={handleFileConversion}
@@ -191,12 +271,12 @@ export default function Home() {
               <div className="text-center lg:text-left">
                 <h3 className="text-2xl font-bold text-white mb-2">Processing Dashboard</h3>
                 <p className="text-gray-400">
-                  Monitor simulated conversions with our neural processing dashboard
+                  Monitor conversions with our neural processing dashboard
                 </p>
               </div>
-              
+
               <div className="bg-gray-900/50 backdrop-blur-sm border border-gray-800 rounded-2xl p-8 shadow-2xl">
-                <ConversionHistory key={refreshKey} />
+                <ConversionHistory conversions={conversions} />
               </div>
             </motion.div>
           </div>
@@ -213,15 +293,11 @@ export default function Home() {
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-2 text-gray-400">
                 <Bot size={18} className="text-cyan-400" />
-                <span>Mockup Demo - Powered by Advanced Neural Networks</span>
+                <span>Powered by Advanced Neural Networks</span>
               </div>
-              
+
               <div className="flex items-center gap-6 text-sm text-gray-400">
                 <span>© 2025 NeuralConvert</span>
-                <span>•</span>
-                <span>Demo Version</span>
-                <span>•</span>
-                <span>Mockup Interface</span>
               </div>
             </div>
           </div>

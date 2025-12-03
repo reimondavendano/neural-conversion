@@ -1,14 +1,37 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 
+interface Particle {
+  left: number;
+  top: number;
+  duration: number;
+  delay: number;
+}
+
 export function CircuitBackground() {
+  const [particles, setParticles] = useState<Particle[]>([]);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    // Generate particles only on client side
+    setParticles(
+      [...Array(20)].map(() => ({
+        left: Math.random() * 100,
+        top: Math.random() * 100,
+        duration: Math.random() * 3 + 2,
+        delay: Math.random() * 2,
+      }))
+    );
+    setMounted(true);
+  }, []);
+
   return (
     <div className="fixed inset-0 overflow-hidden pointer-events-none">
       {/* Animated grid background */}
       <div className="absolute inset-0 opacity-10">
-        <div 
+        <div
           className="w-full h-full"
           style={{
             backgroundImage: `
@@ -30,7 +53,7 @@ export function CircuitBackground() {
             <stop offset="100%" stopColor="rgba(0, 255, 255, 0)" />
           </linearGradient>
         </defs>
-        
+
         {/* Horizontal lines */}
         <motion.line
           x1="0" y1="20%" x2="100%" y2="20%"
@@ -130,29 +153,31 @@ export function CircuitBackground() {
         />
       </svg>
 
-      {/* Floating particles */}
-      <div className="absolute inset-0">
-        {[...Array(20)].map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute w-1 h-1 bg-cyan-400 rounded-full opacity-60"
-            style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-            }}
-            animate={{
-              y: [0, -100, 0],
-              opacity: [0, 1, 0],
-            }}
-            transition={{
-              duration: Math.random() * 3 + 2,
-              repeat: Infinity,
-              delay: Math.random() * 2,
-              ease: "easeInOut",
-            }}
-          />
-        ))}
-      </div>
+      {/* Floating particles - only render after mount */}
+      {mounted && (
+        <div className="absolute inset-0">
+          {particles.map((particle, i) => (
+            <motion.div
+              key={i}
+              className="absolute w-1 h-1 bg-cyan-400 rounded-full opacity-60"
+              style={{
+                left: `${particle.left}%`,
+                top: `${particle.top}%`,
+              }}
+              animate={{
+                y: [0, -100, 0],
+                opacity: [0, 1, 0],
+              }}
+              transition={{
+                duration: particle.duration,
+                repeat: Infinity,
+                delay: particle.delay,
+                ease: "easeInOut",
+              }}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Gradient overlays */}
       <div className="absolute inset-0 bg-gradient-to-br from-black via-transparent to-black opacity-50" />
