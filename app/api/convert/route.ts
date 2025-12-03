@@ -3,7 +3,7 @@ import CloudConvert from 'cloudconvert';
 
 export const dynamic = 'force-dynamic';
 
-const cloudConvert = new CloudConvert(process.env.CLOUDCONVERT_API_KEY || '', true); // true enables sandbox mode
+const cloudConvert = new CloudConvert(process.env.CLOUDCONVERT_API_KEY || '', false); // false = production mode
 
 export async function POST(request: NextRequest) {
   if (!process.env.CLOUDCONVERT_API_KEY) {
@@ -104,13 +104,24 @@ export async function GET(request: NextRequest) {
     const job = await cloudConvert.jobs.get(jobId);
     const exportTask = job.tasks.find(task => task.name === 'export-file');
     const importTask = job.tasks.find(task => task.name === 'import-file');
+    const convertTask = job.tasks.find(task => task.name === 'convert-file');
+
+    // Collect any error messages from tasks
+    const errors = job.tasks
+      .filter(task => task.status === 'error')
+      .map(task => ({
+        name: task.name,
+        message: task.message,
+        code: task.code
+      }));
 
     return NextResponse.json({
       success: true,
       status: job.status,
       job: job,
       exportUrl: exportTask?.result?.files?.[0]?.url,
-      originalFilename: importTask?.result?.files?.[0]?.filename
+      originalFilename: importTask?.result?.files?.[0]?.filename,
+      errors: errors.length > 0 ? errors : undefined
     });
   } catch (error) {
     console.error('Job status error:', error);
